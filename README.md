@@ -62,6 +62,19 @@ The existing `scripts/download_wqp_pilot.py` targets the legacy WQP Result servi
 
 The Department of Water and Sanitation's RQIS / Water Management System exposes selected monitoring data and data-request channels. Automated ingestion is not yet implemented. The South African adapter will be built only after the actual data format, access route, licence, update cadence and field semantics have been verified.
 
+
+### Track C: South African DWS/RQIS CSV exports
+
+A South African import workflow is available for real DWS/RQIS extracts. First audit the exact schema without guessing column names:
+
+```bash
+python scripts/import_dws_csv.py --input path/to/original_dws_export.csv --dataset-name "DWS RQIS water-quality extract"
+```
+
+Inspect the generated `.audit.json`, then create an explicit JSON mapping using the exact source headers before normalizing. The adapter preserves every original column, source checksum, row number, original units and malformed rows for review. See [South African data ingestion instructions](docs/DATA_INGESTION.md) and the [DWS data request email template](docs/DWS_DATA_REQUEST.md).
+
+DWS/RQIS online data can be historical snapshots; the NIWIS water-quality network dashboard is extracted monthly and may lag the underlying WMS database. Verify the specific dataset's provenance, date coverage, licence and reuse conditions. Do not commit raw DWS records to GitHub without permission. Anomaly flags are not regulatory or drinking-water safety determinations.
+
 ## Existing anomaly workflows
 
 The WQP-specific cross-sectional and temporal scripts remain available for datasets with compatible WQP column names:
