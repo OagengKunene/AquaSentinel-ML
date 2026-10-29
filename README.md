@@ -92,3 +92,14 @@ python -m scripts.explain_model --model artifacts/model.joblib --data data/bench
 ```
 
 Use representative explanation data separate from the final holdout. SHAP describes model behaviour, not causality or water safety. See [Explainability and Calibration](docs/EXPLAINABILITY_AND_CALIBRATION.md).
+
+
+## Track B: temporal anomaly screening
+
+For site-specific historical screening of discrete observations, run:
+
+```bash
+python -m scripts.temporal_anomaly --data data/environmental/wqp_results.csv --min-history 20 --lookback 60 --threshold 3.5
+```
+
+Each value is compared only with earlier observations from the same site, parameter and unit. Same-timestamp records are evaluated together to prevent within-event leakage. Insufficient history and zero-MAD groups are explicitly marked. This first version does not model seasonal cycles or irregular sampling intervals. See [Temporal Anomaly Screening](docs/TEMPORAL_ANOMALY_SCREENING.md).
