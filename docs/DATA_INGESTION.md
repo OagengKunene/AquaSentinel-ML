@@ -56,7 +56,7 @@ Outputs:
 - Raw WQP CSV, unchanged.
 - A neighbouring `.metadata.json` file with the exact query URL, scope, dates, retrieval timestamp, row count, columns, and checksum.
 
-The Water Quality Portal provides discrete sample observations contributed by multiple agencies. A query may return measurements with different methods, fractions, units, detection limits, and sample contexts. Inspect the columns and metadata before any harmonisation. Never pivot unrelated records into one artificial sample vector.
+The legacy Water Quality Portal Result service provides discrete sample observations contributed by multiple agencies. **Important freshness limitation:** USGS discrete-water-quality data on the legacy WQP API stopped receiving new and updated records in March 2024. This pilot downloader therefore supports historical legacy-WQP extraction; it must not be presented as a current USGS feed. For current USGS discrete samples, use the USGS Samples API or the beta WQP WQX3 Result service. A query may return measurements with different methods, fractions, units, detection limits, and sample contexts. Inspect the columns and metadata before any harmonisation. Never pivot unrelated records into one artificial sample vector.
 
 ## 4. Data handling rules
 
