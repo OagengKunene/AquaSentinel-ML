@@ -1,0 +1,51 @@
+name: research-data-validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/two-dataset-foundation
+
+jobs:
+  benchmark-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Download and audit the pinned Hugging Face dataset
+        run: |
+          python scripts/download_benchmark.py
+      - name: Profile the real benchmark data
+        run: |
+          python -m scripts.profile_data \
+            --data data/benchmark/water_potability.csv \
+            --target Potability \
+            --output artifacts/benchmark_profile.json
+      - name: Train and evaluate benchmark models
+        run: |
+          python -m aquasentinel.train \
+            --data data/benchmark/water_potability.csv \
+            --target Potability \
+            --output artifacts/benchmark
+      - name: Run unit and integration tests
+        run: pytest -q
+      - name: Upload reproducibility and evaluation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aquasentinel-benchmark-validation
+          path: |
+            artifacts/benchmark_audit.json
+            artifacts/benchmark_profile.json
+            artifacts/benchmark/
+          if-no-files-found: warn
+          retention-days: 30
