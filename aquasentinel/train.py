@@ -159,7 +159,7 @@ def run_experiment(data_path, target=None, output="artifacts", seed=42):
         "The locked holdout was evaluated once after selection; it was not used to choose the model or threshold."
     )
     report["threshold_selection"] = {
-        "method": "maximum F2 score on 5-fold out-of-fold predictions from training partition",
+        "method": "maximum F2 score on training-only 5-fold out-of-fold predictions from training partition",
         "threshold": tuned_threshold,
         "training_oof_metrics": metrics(y_train, oof_predictions, oof_scores),
         "note": (
