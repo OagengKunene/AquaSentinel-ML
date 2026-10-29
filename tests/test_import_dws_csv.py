@@ -40,7 +40,7 @@ def test_explicit_mapping_normalizes_and_retains_raw_columns_and_units(tmp_path)
     output = tmp_path / "normalized.csv"
     pd.DataFrame({
         "Monitoring Point Code": ["A1", "A1", "", "A1"],
-        "Sample Date": ["2020-01-01", "2020-01-02", "", "not-a-date"],
+        "Sample Date": ["2020-01-01", "2020-01-02", "2020-01-03", "not-a-date"],
         "Determinant": ["pH", "pH", "Nitrate", "Nitrate"],
         "Result": ["7.1", "bad-value", "2.4", "3.1"],
         "Units": ["pH units", "pH units", "mg/L", "mg/L"],
