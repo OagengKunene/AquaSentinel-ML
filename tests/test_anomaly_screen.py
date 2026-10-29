@@ -6,7 +6,7 @@ from scripts.anomaly_screen import analyse, robust_z_scores, screen_group
 
 
 def test_robust_z_scores_detect_extreme_value():
-    values = pd.Series([10, 10, 11, 9, 10, 10, 50], dtype=float)
+    values = pd.Series([10, 10, 11, 9, 10, 12, 50], dtype=float)
     scores = robust_z_scores(values)
     assert abs(scores[-1]) > 3.5
 
