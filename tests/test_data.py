@@ -13,3 +13,9 @@ def test_non_binary_target_rejected(tmp_path):
     p=tmp_path/"bad.csv"
     pd.DataFrame({"ph":[6,7,8],"target":[0,1,2]}).to_csv(p,index=False)
     with pytest.raises(ValueError): load_data(p)
+
+def test_fractional_target_values_are_rejected(tmp_path):
+    p=tmp_path/"fractional.csv"
+    pd.DataFrame({"ph":[6,7,8,9],"target":[0,1,0.5,1]}).to_csv(p,index=False)
+    with pytest.raises(ValueError, match="binary"):
+        load_data(p)
