@@ -183,7 +183,7 @@ def main():
     report_path.parent.mkdir(parents=True, exist_ok=True)
     screened.to_csv(output, index=False)
     report["output_csv"] = str(output)
-    report_path.write_text(json.dumps(report, indent=2, default=str) + "\\n", encoding="utf-8")
+    report_path.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
     print(json.dumps({
         "input_rows": report["input_rows"],
         "groups_screened": report["groups_screened"],
