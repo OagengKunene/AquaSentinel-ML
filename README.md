@@ -47,7 +47,7 @@ python scripts/download_wqp_pilot.py --siteid USGS-01594440 --start-date 2020-01
 
 The script preserves the raw CSV and writes query provenance beside it. See the ingestion guide for additional options and interpretation constraints. Downloaded CSV data is excluded from Git by default.
 
-## Existing demo experiment
+## Exploratory data analysis\n\nProfile either downloaded dataset without modifying the raw file:\n\n```bash\n# Track A: include the binary target\npython scripts/profile_data.py --data data/benchmark/water_potability.csv --target Potability\n\n# Track B: descriptive profile only; do not treat records as a continuous time series\npython scripts/profile_data.py --data data/environmental/wqp_results.csv --output artifacts/wqp_profile.json\n```\n\nThe report includes missingness, duplicate rows, numeric summaries and correlations. For WQP data it also reports common parameter/provider values when those columns exist. These are exploratory summaries, not data harmonisation or regulatory assessments.\n\n## Existing demo experiment
 
 Generate synthetic smoke-test data and run the existing pipeline:
 
@@ -58,7 +58,7 @@ python -m aquasentinel.train --data data/demo_water_quality.csv --target potabil
 
 Expected numeric features: `ph, Hardness, Solids, Chloramines, Sulfate, Conductivity, Organic_carbon, Trihalomethanes, Turbidity`. Target must be binary 0/1.
 
-**Methodology note:** the current training implementation is an initial prototype. Before publishing benchmark performance, model selection and threshold decisions must be made without using the final holdout set; preprocessing must remain inside cross-validation folds. This is a planned research-hardening task.
+**Methodology note:** model selection now uses mean cross-validation ROC-AUC on the training partition. The selected model is refit on that partition and the holdout is evaluated once at a predeclared 0.5 threshold. Preprocessing remains inside the scikit-learn pipeline and therefore inside each CV fold. Do not repeatedly inspect or tune against the holdout. This random-split experiment still does not establish performance on new sites or future time periods.
 
 ## API
 
