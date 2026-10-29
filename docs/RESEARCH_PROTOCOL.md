@@ -43,7 +43,7 @@ The benchmark target is not assumed to be equivalent to a current legal drinking
 ### Candidate sources
 
 - [Water Quality Portal](https://www.waterqualitydata.us/), which provides discrete water-quality sample results contributed by multiple agencies.
-- [USGS Water Data APIs](https://api.waterdata.usgs.gov/), including monitoring-location and water-quality resources.
+- [USGS Water Data APIs](https://api.waterdata.usgs.gov/), including monitoring-location, continuous/daily, and water-quality resources. For current USGS discrete samples, use the USGS Samples API or beta WQP WQX3 services; the legacy WQP API stopped receiving new/updated USGS discrete-water-quality records in March 2024.
 
 Prefer current APIs and preserve source-specific identifiers. Do not build new ingestion around deprecated legacy endpoints.
 
