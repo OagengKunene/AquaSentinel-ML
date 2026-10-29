@@ -1,14 +1,16 @@
+"""Leakage-aware benchmark training for AquaSentinel-ML."""
 import argparse
 import json
 from pathlib import Path
 
 import joblib
 import numpy as np
+from sklearn.dummy import DummyClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import (
     accuracy_score, average_precision_score, balanced_accuracy_score,
-    brier_score_loss, classification_report, confusion_matrix, f1_score,
-    precision_score, recall_score, roc_auc_score, calibration_curve,
+    brier_score_loss, calibration_curve, classification_report,
+    confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
 
@@ -43,3 +45,138 @@ def metrics(y, pred, score):
             y, pred, output_dict=True, zero_division=0
         ),
     }
+
+
+def run_experiment(data_path, target=None, output="artifacts", seed=42):
+    """Train candidates using training-only CV and evaluate the selected model once."""
+    output_path = Path(output)
+    output_path.mkdir(parents=True, exist_ok=True)
+    X, y, target_name = load_data(data_path, target)
+
+    class_counts = y.value_counts()
+    if len(class_counts) != 2 or int(class_counts.min()) < 5:
+        raise ValueError("At least five observations from each target class are required for 5-fold stratified CV.")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=seed
+    )
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
+    candidate_estimators = candidates(seed)
+    candidate_estimators = {
+        "majority_class_baseline": DummyClassifier(strategy="prior"),
+        **candidate_estimators,
+    }
+
+    report = {
+        "project": "AquaSentinel-ML",
+        "target": target_name,
+        "n_samples": int(len(y)),
+        "n_train": int(len(y_train)),
+        "n_holdout": int(len(y_test)),
+        "features": FEATURES,
+        "seed": int(seed),
+        "holdout_threshold": 0.5,
+        "selection_metric": "mean 5-fold training-partition ROC-AUC",
+        "warning": (
+            "Research screening prototype only. Not a certified water-safety assessment. "
+            "Random holdout performance does not establish generalisation to new sites or future periods."
+        ),
+        "models": {},
+    }
+
+    best_name = None
+    best_cv_auc = -np.inf
+    best_model = None
+
+    for name, estimator in candidate_estimators.items():
+        model = build_pipeline(estimator)
+        cv_result = cross_validate(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            scoring={
+                "roc_auc": "roc_auc",
+                "average_precision": "average_precision",
+                "balanced_accuracy": "balanced_accuracy",
+            },
+            error_score="raise",
+            n_jobs=1,
+        )
+        mean_auc = float(np.mean(cv_result["test_roc_auc"]))
+        report["models"][name] = {
+            "cv_mean": {
+                metric: float(np.mean(cv_result[f"test_{metric}"]))
+                for metric in ("roc_auc", "average_precision", "balanced_accuracy")
+            },
+            "cv_std": {
+                metric: float(np.std(cv_result[f"test_{metric}"], ddof=1))
+                for metric in ("roc_auc", "average_precision", "balanced_accuracy")
+            },
+        }
+        if mean_auc > best_cv_auc:
+            best_name = name
+            best_cv_auc = mean_auc
+            best_model = model
+
+    best_model.fit(X_train, y_train)
+    holdout_scores = best_model.predict_proba(X_test)[:, 1]
+    holdout_predictions = (holdout_scores >= 0.5).astype(int)
+    report["selected_model"] = best_name
+    report["selected_model_cv_mean_roc_auc"] = best_cv_auc
+    report["selection_note"] = (
+        "The model was selected using cross-validation on the training partition only. "
+        "The locked holdout was evaluated once after selection; it was not used to choose the model or threshold."
+    )
+    report["holdout"] = metrics(y_test, holdout_predictions, holdout_scores)
+
+    importance = permutation_importance(
+        best_model,
+        X_test,
+        y_test,
+        scoring="roc_auc",
+        n_repeats=5,
+        random_state=seed,
+        n_jobs=1,
+    )
+    report["holdout_permutation_importance"] = sorted(
+        [
+            {
+                "feature": feature,
+                "mean_importance": float(mean),
+                "std_importance": float(std),
+            }
+            for feature, mean, std in zip(
+                FEATURES, importance.importances_mean, importance.importances_std
+            )
+        ],
+        key=lambda item: item["mean_importance"],
+        reverse=True,
+    )
+
+    joblib.dump(best_model, output_path / "model.joblib")
+    (output_path / "evaluation.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
+    return report
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train and evaluate AquaSentinel benchmark models.")
+    parser.add_argument("--data", required=True, help="CSV containing nine features and a binary target.")
+    parser.add_argument("--target", default=None, help="Target column name; inferred when omitted.")
+    parser.add_argument("--output", default="artifacts")
+    parser.add_argument("--seed", type=int, default=42)
+    args = parser.parse_args()
+    report = run_experiment(args.data, args.target, args.output, args.seed)
+    print(json.dumps({
+        "selected_model": report["selected_model"],
+        "cv_mean_roc_auc": report["selected_model_cv_mean_roc_auc"],
+        "holdout_metrics": report["holdout"],
+        "warning": report["warning"],
+        "artifacts": str(Path(args.output).resolve()),
+    }, indent=2))
+
+
+if __name__ == "__main__":
+    main()
