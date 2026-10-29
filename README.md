@@ -1,6 +1,6 @@
 # AquaSentinel ML — Explainable Water-Quality Risk Screening
 
-An end-to-end machine-learning project for a global technical problem: helping environmental teams prioritize water samples for laboratory review. Includes data validation, preprocessing pipelines, model comparison, cross-validation, holdout metrics, permutation importance, a FastAPI service, a Streamlit dashboard, tests and Docker support.
+An end-to-end machine-learning project for helping environmental teams prioritize water samples for laboratory review. Includes data validation, preprocessing pipelines, model comparison, cross-validation, holdout metrics, explainability, anomaly screening, API/dashboard foundations and tests.
 
 **Critical limitation:** this is a research/educational prototype, not a certified drinking-water test. Predictions cannot establish that water is safe or unsafe. Synthetic demo data is only for software smoke tests; never use its scores as evidence of real-world performance.
 
@@ -8,8 +8,8 @@ An end-to-end machine-learning project for a global technical problem: helping e
 
 AquaSentinel uses two distinct analytical tracks. Their records and labels must not be merged.
 
-- **Track A — benchmark classification:** a public Hugging Face water-potability benchmark with a binary target. Its dataset provenance and label definition require critical review; the target is not assumed to represent a current regulatory drinking-water determination.
-- **Track B — environmental anomaly screening:** discrete sample observations from the Water Quality Portal and, where suitable, USGS water-data services. Site, sample-event, date, parameter, unit, method and detection-limit metadata must be retained. An anomaly is not proof of contamination or health risk.
+- **Track A — benchmark classification:** a public Hugging Face water-potability benchmark with a binary target. Its provenance and label definition require critical review; the target is not assumed to represent a current regulatory drinking-water determination.
+- **Track B — environmental anomaly screening:** discrete sample observations from USGS and the Water Quality Portal, with a planned South African DWS/RQIS extension. Site, sample-event, date, parameter, unit, method and detection-limit metadata must be retained. An anomaly is not proof of contamination or health risk.
 
 See [Research Protocol](docs/RESEARCH_PROTOCOL.md) and [Data Ingestion Guide](docs/DATA_INGESTION.md).
 
@@ -31,101 +31,50 @@ In another terminal: `streamlit run dashboard/app.py`. Tests: `pytest -q`.
 
 ## Download research datasets
 
-Track A benchmark:
+### Track A: Hugging Face benchmark
 
 ```bash
 python scripts/download_benchmark.py
 ```
 
-This saves the CSV under `data/benchmark/` and an audit report under `artifacts/`, including the resolved Hugging Face revision and SHA-256 checksum.
+This saves the CSV under `data/benchmark/` and an audit report under `artifacts/`, including the resolved immutable Hugging Face revision and SHA-256 checksum.
 
-Track B Water Quality Portal pilot (choose a bounded site or state scope, date range and characteristic):
+### Track B1: current USGS discrete water-quality samples
 
-```bash
-python scripts/download_wqp_pilot.py --siteid USGS-01594440 --start-date 2020-01-01 --end-date 2020-12-31 --characteristic "Dissolved oxygen"
-```
-
-The script preserves the raw CSV and writes query provenance beside it. See the ingestion guide for additional options and interpretation constraints. Downloaded CSV data is excluded from Git by default.
-
-## Exploratory data analysis
-
-Profile either downloaded dataset without modifying the raw file:
+Use the modern USGS Samples API adapter (not the legacy WQP endpoint) for current USGS discrete observations:
 
 ```bash
-# Track A: include the binary target
-python -m scripts.profile_data --data data/benchmark/water_potability.csv --target Potability
-
-# Track B: descriptive profile only; do not treat records as a continuous time series
-python -m scripts.profile_data --data data/environmental/wqp_results.csv --output artifacts/wqp_profile.json
+python scripts/download_usgs_samples.py \
+  --site-id USGS-04024315 \
+  --start-date 2020-01-01 \
+  --end-date 2020-12-31 \
+  --characteristic pH \
+  --output data/environmental/usgs_samples.csv
 ```
 
-The report includes missingness, duplicate rows, numeric summaries and correlations. For WQP data it also reports common parameter/provider values when those columns exist. These are exploratory summaries, not data harmonisation or regulatory assessments.
+The query must specify a single USGS site, date interval and characteristic or USGS parameter code. The script retains the raw CSV unchanged and writes a neighbouring metadata JSON containing the exact request URL, retrieval time, query scope, columns, row count and checksum. Transient HTTP failures use bounded retries; record count and response size are capped. See [Data Ingestion Guide](docs/DATA_INGESTION.md).
 
-## Track B: environmental anomaly screening
+### Track B2: historical / multi-agency Water Quality Portal pilot
 
-After downloading a bounded Water Quality Portal dataset, run the parameter-aware anomaly screen:
+The existing `scripts/download_wqp_pilot.py` targets the legacy WQP Result service. It remains useful for historical extraction, but legacy USGS discrete records stopped receiving new/updated data in March 2024. Do not treat it as a current USGS feed. Use the USGS Samples API above for current USGS discrete data; evaluate the beta WQP WQX3 service separately for cross-agency coverage.
+
+### Track B3: South African DWS/RQIS data
+
+The Department of Water and Sanitation's RQIS / Water Management System exposes selected monitoring data and data-request channels. Automated ingestion is not yet implemented. The South African adapter will be built only after the actual data format, access route, licence, update cadence and field semantics have been verified.
+
+## Existing anomaly workflows
+
+The WQP-specific cross-sectional and temporal scripts remain available for datasets with compatible WQP column names:
 
 ```bash
 python -m scripts.anomaly_screen --data data/environmental/wqp_results.csv --scope site --min-samples 30
-```
-
-This adds robust median/MAD scores, Isolation Forest flags and Local Outlier Factor flags within characteristic/unit/site groups. Small groups are skipped. The default site scope avoids pooling naturally different monitoring locations. These are exploratory statistical signals, not evidence of contamination or unsafe water. See [Anomaly Screening Methodology](docs/ANOMALY_SCREENING.md).
-
-## Existing demo experiment
-
-Generate synthetic smoke-test data and run the existing pipeline:
-
-```bash
-python scripts/generate_demo_data.py
-python -m aquasentinel.train --data data/demo_water_quality.csv --target potability
-```
-
-Expected numeric features: `ph, Hardness, Solids, Chloramines, Sulfate, Conductivity, Organic_carbon, Trihalomethanes, Turbidity`. Target must be binary 0/1.
-
-**Methodology note:** model selection uses mean 5-fold ROC-AUC on the training partition. Threshold analysis uses nested 5-fold outer / 4-fold inner cross-validation, with model selection repeated inside each outer training fold. The locked holdout is not used to choose either the model or operating thresholds. Reports include the default 0.5 threshold, a recall-focused F2 threshold, and a maximum-recall alternative subject to a training-only precision floor of 0.50. These are exploratory trade-offs, not safety cutoffs; see [the benchmark results and interpretation](docs/BENCHMARK_BASELINE_RESULTS.md). Preprocessing remains inside each scikit-learn pipeline. This random-split experiment still does not establish performance on new sites or future time periods.
-
-Run tests with `pytest -q`; GitHub Actions runs the same suite on pushes and pull requests.
-
-## API
-
-`POST /predict` accepts these measurement fields. Example:
-
-```json
-{"ph":7.2,"Hardness":180,"Solids":12000,"Chloramines":6,"Sulfate":300,"Conductivity":400,"Organic_carbon":10,"Trihalomethanes":60,"Turbidity":3}
-```
-
-Returns a model score and screening-priority label, not a verified probability of contamination.
-
-## Technical design
-
-- Scikit-learn preprocessing pipeline (median imputation, missingness indicators, scaling).
-- Random Forest, HistGradientBoosting and Logistic Regression candidates.
-- Stratified 5-fold CV and holdout evaluation metrics, with evaluation design under active hardening.
-- Permutation feature importance and persisted model/report artifacts.
-- API, interactive dashboard, synthetic data generator and unit tests.
-
-## Research and deployment cautions
-
-Random splits may overestimate performance when samples are clustered by time/site. Prefer external, site/time-based validation where possible. Thresholds require domain-expert review and explicit false-negative/false-positive cost analysis. Do not compare environmental measurements without checking parameter identifiers, units, methods, fractions and sample context. Before production: add authentication, rate limiting, monitoring, data provenance, validated calibration, robust model versioning, privacy controls and independent scientific validation. Never use this tool as a substitute for accredited laboratory testing or local public-health advice.
-
-
-## Explainability and calibration
-
-Training reports include Brier score and quantile-binned calibration diagnostics. Optional model-agnostic SHAP explanations can be generated after installing `pip install -e ".[explain]"`:
-
-```bash
-python -m scripts.explain_model --model artifacts/model.joblib --data data/benchmark/explanation_rows.csv
-```
-
-Use representative explanation data separate from the final holdout. SHAP describes model behaviour, not causality or water safety. See [Explainability and Calibration](docs/EXPLAINABILITY_AND_CALIBRATION.md).
-
-
-## Track B: temporal anomaly screening
-
-For site-specific historical screening of discrete observations, run:
-
-```bash
 python -m scripts.temporal_anomaly --data data/environmental/wqp_results.csv --min-history 20 --lookback 60 --threshold 3.5
 ```
 
-Each value is compared only with earlier observations from the same site, parameter and unit. Same-timestamp records are evaluated together to prevent within-event leakage. Insufficient history and zero-MAD groups are explicitly marked. This first version does not model seasonal cycles or irregular sampling intervals. See [Temporal Anomaly Screening](docs/TEMPORAL_ANOMALY_SCREENING.md).
+The new USGS `narrow` profile is not silently renamed into the legacy WQP schema. Inspect its columns and implement an explicit, tested mapping before using these scripts. Flags are exploratory statistical signals, not evidence of contamination or unsafe water.
+
+## Model methodology and limitations
+
+The supervised benchmark uses a training-partition model-selection process and nested cross-validation for exploratory threshold analysis. Holdout data are not used to choose the model or operating thresholds. A random split does not establish performance on new sites or future time periods. Thresholds are not water-safety cutoffs.
+
+Before production: add site/time-based external validation, expert review, validated calibration, monitoring, model versioning, privacy controls and independent scientific validation. Never use this tool as a substitute for accredited laboratory testing or local public-health advice.
