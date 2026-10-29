@@ -21,48 +21,64 @@ pip install -r requirements.txt
 python scripts/download_benchmark.py
 ```
 
-Outputs:
-- `data/benchmark/water_potability.csv`: downloaded source data.
-- `artifacts/benchmark_audit.json`: source revision, retrieval time, checksum, row/column counts, label counts, duplicates, missingness, and descriptive statistics.
+Outputs include the downloaded CSV and an audit report with the immutable dataset revision and checksum. The benchmark's provenance and binary label require critical review; it is not a current regulatory drinking-water determination.
 
-The script resolves the current dataset revision through the Hugging Face Hub API, then downloads the CSV at that immutable revision. The dataset repository currently identifies its licence as MIT, but its dataset card is minimal; the scientific provenance and meaning of its binary label require further investigation. Do not interpret its target as a current regulatory drinking-water determination.
+## 3. Track B: current USGS discrete samples
 
-## 3. Track B: Water Quality Portal pilot
+Use the modern USGS Samples API for current USGS discrete water-quality results. The API exposes result profiles, including a compact `narrow` profile. The legacy Water Quality Portal API stopped receiving new/updated USGS discrete data in March 2024. The beta WQP WQX3 service is a separate option when cross-agency coverage is required.
 
-Choose a small, explicit site or state scope, date interval, and characteristic. Example using a USGS site:
+Example (bounded by one known site, a date interval and a characteristic):
 
 ```bash
-python scripts/download_wqp_pilot.py \
-  --siteid USGS-01594440 \
+python scripts/download_usgs_samples.py \
+  --site-id USGS-04024315 \
   --start-date 2020-01-01 \
   --end-date 2020-12-31 \
-  --characteristic "Dissolved oxygen" \
-  --output data/environmental/wqp_results.csv
+  --characteristic pH \
+  --output data/environmental/usgs_samples.csv
 ```
 
-Example using a state code (replace with a suitable US state code):
+Or specify a USGS parameter code:
 
 ```bash
-python scripts/download_wqp_pilot.py \
-  --statecode US:55 \
+python scripts/download_usgs_samples.py \
+  --site-id USGS-04024315 \
   --start-date 2020-01-01 \
-  --end-date 2020-03-31 \
-  --characteristic "Dissolved oxygen" \
-  --characteristic "pH" \
-  --max-records 100000
+  --end-date 2020-12-31 \
+  --usgs-pcode 00400
 ```
 
-Outputs:
-- Raw WQP CSV, unchanged.
-- A neighbouring `.metadata.json` file with the exact query URL, scope, dates, retrieval timestamp, row count, columns, and checksum.
+The adapter uses the `results/narrow` profile and preserves the returned CSV bytes unchanged. A neighbouring JSON audit file records the request URL, site/date/parameter scope, retrieval time, returned columns, row count and SHA-256. Requests are bounded to a single USGS site, date range and at least one parameter selector; the default maximum is 100,000 records and the response-size ceiling is 250 MiB. Retry/backoff is applied to transient HTTP failures.
 
-The legacy Water Quality Portal Result service provides discrete sample observations contributed by multiple agencies. **Important freshness limitation:** USGS discrete-water-quality data on the legacy WQP API stopped receiving new and updated records in March 2024. This pilot downloader therefore supports historical legacy-WQP extraction; it must not be presented as a current USGS feed. For current USGS discrete samples, use the USGS Samples API or the beta WQP WQX3 Result service. A query may return measurements with different methods, fractions, units, detection limits, and sample contexts. Inspect the columns and metadata before any harmonisation. Never pivot unrelated records into one artificial sample vector.
+The API's narrow profile is intentionally not transformed into the older WQP schema. Inspect its returned field names before running the existing WQP-specific anomaly scripts; a future adapter should map fields explicitly and retain original columns.
 
-## 4. Data handling rules
+Official documentation:
+- [USGS Samples API documentation](https://api.waterdata.usgs.gov/samples-data/docs)
+- [USGS Samples API examples and query parameters](https://water.code-pages.usgs.gov/dataRetrieval/reference/read_waterdata_samples.html)
+- [USGS/dataRetrieval status notes on legacy WQP freshness](https://water.code-pages.usgs.gov/dataRetrieval/articles/Status.html)
 
-- Do not commit downloaded datasets or derived sensitive data to Git unless redistribution rights and repository policy have been checked. The default `.gitignore` excludes CSV files under `data/`.
-- Keep the raw data immutable. Perform cleaning and unit conversion into separate derived files with documented transformations.
-- Record parameter identifiers as well as display names where available.
-- Use parameter-specific analysis until sample-event linkage and unit/method compatibility are established.
-- Anomaly scores indicate unusual observations relative to a defined reference distribution; they do not establish contamination, a health risk, or regulatory non-compliance.
-- Synthetic demo data are for software tests only and are not empirical evidence.
+## 4. Historical / multi-agency Water Quality Portal pilot
+
+The existing `scripts/download_wqp_pilot.py` remains a historical legacy-WQP downloader. Do not describe it as a current USGS feed. For current USGS records use the Samples API above; for multi-agency discrete records investigate WQP WQX3 and verify its beta-service status before relying on it.
+
+## 5. South African data track
+
+The Department of Water and Sanitation's Resource Quality Information Services (RQIS) / Water Management System (WMS) publishes selected water-quality results, monitoring-point inventories, eutrophication summaries, microbial assessments and ecosystem data. The DWS portal also indicates that some results are web snapshots and provides a contact route for data requests. This project does not yet claim an automated DWS API integration.
+
+Start with:
+- [DWS RQIS / WMS](https://www.dws.gov.za/iwqs/wms/default.aspx)
+- [DWS water-quality data and reports](https://www.dwa.gov.za/iwqs/report.aspx)
+- [DWS water-quality exploration tool](https://www.dws.gov.za/iwqs/wms/data/000key.asp)
+- [Water Research Observatory: South African water-quality sources](https://www.waterresearchobservatory.org/data-and-resources/water-quality)
+
+Before ingesting a South African extract, record its owner, access date, retrieval route, licence/usage terms, update cadence, station identifier, sample/event identifier, parameter, value, unit, method, fraction, detection limit, qualifiers and date/time. Some DWS outputs are snapshots or historical extracts; verify freshness and permitted use with the data owner. Do not scrape or reverse-engineer undocumented interfaces as if they were supported APIs.
+
+## 6. Data handling rules
+
+- Keep raw downloads immutable and separate from derived/cleaned data.
+- Do not commit downloaded datasets to Git unless redistribution rights and repository policy have been checked.
+- Preserve original parameter identifiers and display names.
+- Do not compare unlike units, methods, fractions, qualifiers or sample contexts.
+- Discrete samples are not continuous time series; sample-event linkage must be established before combining parameters.
+- Anomaly scores indicate unusual observations relative to a defined reference distribution. They do not establish contamination, health risk, safety or regulatory non-compliance.
+- Synthetic demo data are for software tests only, not empirical evidence.
