@@ -34,7 +34,10 @@ def test_training_selects_on_cv_and_writes_artifacts(tmp_path, monkeypatch):
 
     assert report["selected_model"] == "logistic_regression"
     assert "holdout" in report
-    assert "roc_auc" in report["holdout"]\n    assert 0.0 < report["threshold_selection"]["threshold"] < 1.0\n    assert "recall" in report["holdout_at_training_selected_f2_threshold"]\n    assert "training-only" in report["threshold_selection"]["method"]
+    assert "roc_auc" in report["holdout"]
+    assert 0.0 < report["threshold_selection"]["threshold"] < 1.0
+    assert "recall" in report["holdout_at_training_selected_f2_threshold"]
+    assert "training-only" in report["threshold_selection"]["method"]
     assert "selected_model_cv_mean_roc_auc" in report
     assert "not used to choose the model" in report["selection_note"]
     assert (tmp_path / "artifacts" / "model.joblib").exists()
