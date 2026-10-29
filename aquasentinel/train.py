@@ -95,7 +95,8 @@ def run_experiment(data_path, target=None, output="artifacts", seed=42):
         "n_holdout": int(len(y_test)),
         "features": FEATURES,
         "seed": int(seed),
-        "holdout_threshold": 0.5,\n        "threshold_tuning_objective": "F2 maximization using training-only out-of-fold predictions",
+        "holdout_threshold": 0.5,
+        "threshold_tuning_objective": "F2 maximization using training-only out-of-fold predictions",
         "selection_metric": "mean 5-fold training-partition ROC-AUC",
         "warning": (
             "Research screening prototype only. Not a certified water-safety assessment. "
@@ -139,9 +140,18 @@ def run_experiment(data_path, target=None, output="artifacts", seed=42):
             best_cv_auc = mean_auc
             best_model = model
 
+    # Generate out-of-fold probabilities on the training partition only.
+    # These predictions set the exploratory F2 operating threshold; the holdout stays locked.
+    oof_scores = cross_val_predict(
+        best_model, X_train, y_train, cv=cv, method="predict_proba", n_jobs=1
+    )[:, 1]
+    tuned_threshold = select_f2_threshold(y_train, oof_scores)
+    oof_predictions = (oof_scores >= tuned_threshold).astype(int)
+
     best_model.fit(X_train, y_train)
     holdout_scores = best_model.predict_proba(X_test)[:, 1]
     holdout_predictions = (holdout_scores >= 0.5).astype(int)
+    tuned_holdout_predictions = (holdout_scores >= tuned_threshold).astype(int)
     report["selected_model"] = best_name
     report["selected_model_cv_mean_roc_auc"] = best_cv_auc
     report["selection_note"] = (
@@ -204,7 +214,9 @@ def main():
     print(json.dumps({
         "selected_model": report["selected_model"],
         "cv_mean_roc_auc": report["selected_model_cv_mean_roc_auc"],
-        "holdout_metrics_at_0_5": report["holdout"],\n        "holdout_metrics_at_training_selected_f2_threshold": report["holdout_at_training_selected_f2_threshold"],\n        "training_selected_threshold": report["threshold_selection"]["threshold"],
+        "holdout_metrics_at_0_5": report["holdout"],
+        "holdout_metrics_at_training_selected_f2_threshold": report["holdout_at_training_selected_f2_threshold"],
+        "training_selected_threshold": report["threshold_selection"]["threshold"],
         "warning": report["warning"],
         "artifacts": str(Path(args.output).resolve()),
     }, indent=2))
