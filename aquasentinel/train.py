@@ -13,7 +13,7 @@ from sklearn.metrics import (
     brier_score_loss, classification_report,
     confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate, train_test_split
+from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
 
 from .data import load_data
 from .features import FEATURES
@@ -294,6 +294,7 @@ def main():
         "cv_mean_roc_auc": report["selected_model_cv_mean_roc_auc"],
         "holdout_metrics_at_0_5": report["holdout"],
         "holdout_metrics_at_training_selected_f2_threshold": report["holdout_at_training_selected_f2_threshold"],
+        "holdout_metrics_at_training_precision_constrained_threshold": report["holdout_at_training_precision_constrained_threshold"],
         "training_selected_threshold": report["threshold_selection"]["threshold"],
         "warning": report["warning"],
         "artifacts": str(Path(args.output).resolve()),
