@@ -67,6 +67,59 @@ def select_f2_threshold(y_true, probabilities):
     return float(thresholds[best_index])
 
 
+
+def select_recall_threshold_with_precision_floor(y_true, probabilities, min_precision=0.50):
+    """Maximize recall among training OOF thresholds meeting a precision floor."""
+    from sklearn.metrics import precision_recall_curve
+
+    precision, recall, thresholds = precision_recall_curve(y_true, probabilities)
+    eligible = np.flatnonzero(precision[:-1] >= min_precision)
+    if len(eligible) == 0:
+        return 0.5, False
+    best_index = int(eligible[np.argmax(recall[eligible])])
+    return float(thresholds[best_index]), True
+
+
+def nested_oof_probabilities(X, y, seed=42):
+    """Generate out-of-fold scores with model selection nested inside each outer fold."""
+    from sklearn.base import clone
+
+    outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed + 1)
+    probabilities = np.full(len(y), np.nan, dtype=float)
+    selected_by_fold = []
+
+    for fold_number, (fit_indices, validation_indices) in enumerate(outer_cv.split(X, y)):
+        X_fit, X_validation = X.iloc[fit_indices], X.iloc[validation_indices]
+        y_fit, y_validation = y.iloc[fit_indices], y.iloc[validation_indices]
+        inner_cv = StratifiedKFold(
+            n_splits=4, shuffle=True, random_state=seed + 100 + fold_number
+        )
+        fold_candidates = {
+            "majority_class_baseline": DummyClassifier(strategy="prior"),
+            **candidates(seed + fold_number),
+        }
+        best_name = None
+        best_auc = -np.inf
+        best_estimator = None
+
+        for name, estimator in fold_candidates.items():
+            pipeline = build_pipeline(clone(estimator))
+            result = cross_validate(
+                pipeline, X_fit, y_fit, cv=inner_cv, scoring="roc_auc",
+                error_score="raise", n_jobs=1,
+            )
+            mean_auc = float(np.mean(result["test_score"]))
+            if mean_auc > best_auc:
+                best_name, best_auc, best_estimator = name, mean_auc, pipeline
+
+        best_estimator.fit(X_fit, y_fit)
+        probabilities[validation_indices] = best_estimator.predict_proba(X_validation)[:, 1]
+        selected_by_fold.append(best_name)
+
+    if np.isnan(probabilities).any():
+        raise RuntimeError("Nested cross-validation did not produce every out-of-fold probability.")
+    return probabilities, selected_by_fold
+
 def run_experiment(data_path, target=None, output="artifacts", seed=42):
     """Train candidates using training-only CV and evaluate the selected model once."""
     output_path = Path(output)
@@ -140,13 +193,22 @@ def run_experiment(data_path, target=None, output="artifacts", seed=42):
             best_cv_auc = mean_auc
             best_model = model
 
-    # Generate out-of-fold probabilities on the training partition only.
-    # These predictions set the exploratory F2 operating threshold; the holdout stays locked.
-    oof_scores = cross_val_predict(
-        best_model, X_train, y_train, cv=cv, method="predict_proba", n_jobs=1
-    )[:, 1]
+    # Nested CV keeps model selection inside each outer training fold when
+    # generating the OOF scores used to set operating thresholds.
+    oof_scores, nested_selected_models = nested_oof_probabilities(
+        X_train, y_train, seed=seed
+    )
     tuned_threshold = select_f2_threshold(y_train, oof_scores)
     oof_predictions = (oof_scores >= tuned_threshold).astype(int)
+    precision_floor = 0.50
+    precision_constrained_threshold, precision_floor_met = (
+        select_recall_threshold_with_precision_floor(
+            y_train, oof_scores, min_precision=precision_floor
+        )
+    )
+    constrained_oof_predictions = (
+        oof_scores >= precision_constrained_threshold
+    ).astype(int)
 
     best_model.fit(X_train, y_train)
     holdout_scores = best_model.predict_proba(X_test)[:, 1]
@@ -159,17 +221,33 @@ def run_experiment(data_path, target=None, output="artifacts", seed=42):
         "The locked holdout was evaluated once after selection; it was not used to choose the model or threshold."
     )
     report["threshold_selection"] = {
-        "method": "maximum F2 score on training-only 5-fold out-of-fold predictions from training partition",
+        "method": "maximum F2 on nested 5-fold out-of-fold predictions; model selection is repeated inside each outer training fold",
         "threshold": tuned_threshold,
         "training_oof_metrics": metrics(y_train, oof_predictions, oof_scores),
+        "nested_fold_selected_models": nested_selected_models,
+        "precision_constrained_alternative": {
+            "minimum_precision": precision_floor,
+            "constraint_met": precision_floor_met,
+            "threshold": precision_constrained_threshold,
+            "training_oof_metrics": metrics(
+                y_train, constrained_oof_predictions, oof_scores
+            ),
+        },
         "note": (
-            "Threshold was selected without accessing the locked holdout. "
-            "It is an exploratory operating point, not a safety or regulatory cutoff."
+            "Both operating points were selected using nested out-of-fold predictions "
+            "from the training partition only. The precision floor is a design choice, "
+            "not a validated public-health requirement. Neither threshold is a safety or regulatory cutoff."
         ),
     }
     report["holdout"] = metrics(y_test, holdout_predictions, holdout_scores)
     report["holdout_at_training_selected_f2_threshold"] = metrics(
         y_test, tuned_holdout_predictions, holdout_scores
+    )
+    constrained_holdout_predictions = (
+        holdout_scores >= precision_constrained_threshold
+    ).astype(int)
+    report["holdout_at_training_precision_constrained_threshold"] = metrics(
+        y_test, constrained_holdout_predictions, holdout_scores
     )
 
     importance = permutation_importance(
