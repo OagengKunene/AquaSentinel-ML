@@ -24,3 +24,23 @@ def test_profile_rejects_missing_target(tmp_path):
     pd.DataFrame({"value": [1, 2]}).to_csv(path, index=False)
     with pytest.raises(ValueError):
         profile_csv(str(path), "Potability")
+
+
+def test_profile_cli_writes_valid_json(tmp_path, monkeypatch):
+    import json
+    import sys
+
+    from scripts import profile_data
+
+    source = tmp_path / "input.csv"
+    output = tmp_path / "profile.json"
+    pd.DataFrame({"ph": [6.5, 7.0, 7.5]}).to_csv(source, index=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["profile_data", "--data", str(source), "--output", str(output)],
+    )
+
+    profile_data.main()
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["rows"] == 3
