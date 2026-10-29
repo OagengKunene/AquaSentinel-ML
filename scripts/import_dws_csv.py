@@ -158,6 +158,8 @@ def audit_dws_csv(input_path: Path, mapping_path: Path | None = None,
 
         if output_path is None:
             output_path = input_path.with_name(input_path.stem + ".normalized.csv")
+        if output_path.resolve() == input_path.resolve():
+            raise ValueError("Normalized output must not overwrite the original raw source file.")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         normalized.to_csv(output_path, index=False)
         metadata["mapping_applied"] = mapping
@@ -179,8 +181,8 @@ def audit_dws_csv(input_path: Path, mapping_path: Path | None = None,
         }
 
     report_path = input_path.with_suffix(input_path.suffix + ".audit.json")
-    report_path.write_text(json.dumps(metadata, indent=2, default=str) + "\n", encoding="utf-8")
     metadata["audit_report"] = str(report_path)
+    report_path.write_text(json.dumps(metadata, indent=2, default=str) + "\n", encoding="utf-8")
     return metadata
 
 
