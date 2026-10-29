@@ -39,7 +39,9 @@ def test_same_timestamp_rows_do_not_leak_into_each_others_baseline():
 
 
 def test_temporal_groups_are_site_specific():
-    values = [7.0] * 20 + [12.0] + [8.0] * 20 + [12.0]
+    site_a_history = [7.0, 7.1, 6.9] * 6 + [7.0, 7.1]
+    site_b_history = [12.0, 12.1, 11.9] * 6 + [12.0, 12.1]
+    values = site_a_history + [12.0] + site_b_history + [12.0]
     sites = ["SITE-A"] * 21 + ["SITE-B"] * 21
     result, _ = temporal_screen(make_series(values, sites=sites), min_history=20)
     assert bool(result.iloc[20]["aqua_temporal_flag"])
