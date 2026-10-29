@@ -13,7 +13,7 @@ from sklearn.metrics import (
     brier_score_loss, classification_report,
     confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
+from sklearn.model_selection import StratifiedKFold, cross_val_predict, cross_validate, train_test_split
 
 from .data import load_data
 from .features import FEATURES
@@ -48,6 +48,25 @@ def metrics(y, pred, score):
     }
 
 
+def select_f2_threshold(y_true, probabilities):
+    """Choose a probability threshold using training-only out-of-fold predictions."""
+    from sklearn.metrics import precision_recall_curve
+
+    precision, recall, thresholds = precision_recall_curve(y_true, probabilities)
+    if len(thresholds) == 0:
+        return 0.5
+    beta_squared = 4.0
+    denominator = beta_squared * precision[:-1] + recall[:-1]
+    f2_scores = np.divide(
+        (1.0 + beta_squared) * precision[:-1] * recall[:-1],
+        denominator,
+        out=np.zeros_like(denominator),
+        where=denominator > 0,
+    )
+    best_index = int(np.argmax(f2_scores))
+    return float(thresholds[best_index])
+
+
 def run_experiment(data_path, target=None, output="artifacts", seed=42):
     """Train candidates using training-only CV and evaluate the selected model once."""
     output_path = Path(output)
@@ -76,7 +95,7 @@ def run_experiment(data_path, target=None, output="artifacts", seed=42):
         "n_holdout": int(len(y_test)),
         "features": FEATURES,
         "seed": int(seed),
-        "holdout_threshold": 0.5,
+        "holdout_threshold": 0.5,\n        "threshold_tuning_objective": "F2 maximization using training-only out-of-fold predictions",
         "selection_metric": "mean 5-fold training-partition ROC-AUC",
         "warning": (
             "Research screening prototype only. Not a certified water-safety assessment. "
@@ -129,7 +148,19 @@ def run_experiment(data_path, target=None, output="artifacts", seed=42):
         "The model was selected using cross-validation on the training partition only. "
         "The locked holdout was evaluated once after selection; it was not used to choose the model or threshold."
     )
+    report["threshold_selection"] = {
+        "method": "maximum F2 score on 5-fold out-of-fold predictions from training partition",
+        "threshold": tuned_threshold,
+        "training_oof_metrics": metrics(y_train, oof_predictions, oof_scores),
+        "note": (
+            "Threshold was selected without accessing the locked holdout. "
+            "It is an exploratory operating point, not a safety or regulatory cutoff."
+        ),
+    }
     report["holdout"] = metrics(y_test, holdout_predictions, holdout_scores)
+    report["holdout_at_training_selected_f2_threshold"] = metrics(
+        y_test, tuned_holdout_predictions, holdout_scores
+    )
 
     importance = permutation_importance(
         best_model,
@@ -173,7 +204,7 @@ def main():
     print(json.dumps({
         "selected_model": report["selected_model"],
         "cv_mean_roc_auc": report["selected_model_cv_mean_roc_auc"],
-        "holdout_metrics": report["holdout"],
+        "holdout_metrics_at_0_5": report["holdout"],\n        "holdout_metrics_at_training_selected_f2_threshold": report["holdout_at_training_selected_f2_threshold"],\n        "training_selected_threshold": report["threshold_selection"]["threshold"],
         "warning": report["warning"],
         "artifacts": str(Path(args.output).resolve()),
     }, indent=2))
