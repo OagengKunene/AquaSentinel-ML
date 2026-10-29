@@ -81,3 +81,14 @@ Returns a model score and screening-priority label, not a verified probability o
 ## Research and deployment cautions
 
 Random splits may overestimate performance when samples are clustered by time/site. Prefer external, site/time-based validation where possible. Thresholds require domain-expert review and explicit false-negative/false-positive cost analysis. Do not compare environmental measurements without checking parameter identifiers, units, methods, fractions and sample context. Before production: add authentication, rate limiting, monitoring, data provenance, validated calibration, robust model versioning, privacy controls and independent scientific validation. Never use this tool as a substitute for accredited laboratory testing or local public-health advice.
+
+
+## Explainability and calibration
+
+Training reports include Brier score and quantile-binned calibration diagnostics. Optional model-agnostic SHAP explanations can be generated after installing `pip install -e ".[explain]"`:
+
+```bash
+python -m scripts.explain_model --model artifacts/model.joblib --data data/benchmark/explanation_rows.csv
+```
+
+Use representative explanation data separate from the final holdout. SHAP describes model behaviour, not causality or water safety. See [Explainability and Calibration](docs/EXPLAINABILITY_AND_CALIBRATION.md).
