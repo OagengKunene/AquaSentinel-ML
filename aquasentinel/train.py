@@ -7,9 +7,10 @@ import joblib
 import numpy as np
 from sklearn.dummy import DummyClassifier
 from sklearn.inspection import permutation_importance
+from sklearn.calibration import calibration_curve
 from sklearn.metrics import (
     accuracy_score, average_precision_score, balanced_accuracy_score,
-    brier_score_loss, calibration_curve, classification_report,
+    brier_score_loss, classification_report,
     confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score,
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
