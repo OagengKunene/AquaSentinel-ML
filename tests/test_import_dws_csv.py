@@ -39,12 +39,12 @@ def test_explicit_mapping_normalizes_and_retains_raw_columns_and_units(tmp_path)
     mapping_path = tmp_path / "mapping.json"
     output = tmp_path / "normalized.csv"
     pd.DataFrame({
-        "Monitoring Point Code": ["A1", "A1", ""],
-        "Sample Date": ["2020-01-01", "not-a-date", "2020-01-03"],
-        "Determinant": ["pH", "pH", "Nitrate"],
-        "Result": ["7.1", "bad-value", "2.4"],
-        "Units": ["pH units", "pH units", "mg/L"],
-        "Lab Method": ["M1", "M1", "M2"],
+        "Monitoring Point Code": ["A1", "A1", "", "A1"],
+        "Sample Date": ["2020-01-01", "2020-01-02", "", "not-a-date"],
+        "Determinant": ["pH", "pH", "Nitrate", "Nitrate"],
+        "Result": ["7.1", "bad-value", "2.4", "3.1"],
+        "Units": ["pH units", "pH units", "mg/L", "mg/L"],
+        "Lab Method": ["M1", "M1", "M2", "M2"],
     }).to_csv(source, index=False)
     mapping_path.write_text(json.dumps({
         "station_id": "Monitoring Point Code",
@@ -56,7 +56,7 @@ def test_explicit_mapping_normalizes_and_retains_raw_columns_and_units(tmp_path)
     }))
     report = audit_dws_csv(source, mapping_path, output)
     normalized = pd.read_csv(output, dtype=str, keep_default_na=False)
-    assert len(normalized) == 3
+    assert len(normalized) == 4
     assert normalized.loc[0, "station_id"] == "A1"
     assert normalized.loc[0, "result_unit"] == "pH units"
     assert normalized.loc[2, "result_unit"] == "mg/L"
@@ -64,6 +64,7 @@ def test_explicit_mapping_normalizes_and_retains_raw_columns_and_units(tmp_path)
     assert report["normalization_status_counts"]["ready_for_review"] == 1
     assert report["normalization_status_counts"]["invalid_or_missing_sample_datetime"] == 1
     assert report["normalization_status_counts"]["invalid_or_missing_numeric_result"] == 1
+    assert report["normalization_status_counts"]["missing_station_id"] == 1
 
 
 def test_mapping_requires_exact_existing_headers(tmp_path):
