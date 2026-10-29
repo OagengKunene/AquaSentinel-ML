@@ -80,8 +80,23 @@ def test_mapping_requires_exact_existing_headers(tmp_path):
         load_mapping(mapping_path, ["Site", "Date", "Parameter", "Value", "Unit"])
 
 
-def test_audit_rejects_empty_and_oversized_files(tmp_path, monkeypatch):
+def test_audit_rejects_empty_files_and_prevents_raw_overwrite(tmp_path):
     source = tmp_path / "empty.csv"
     source.write_bytes(b"")
     with pytest.raises(ValueError, match="empty"):
         audit_dws_csv(source)
+
+    raw = tmp_path / "source.csv"
+    pd.DataFrame({
+        "station": ["S1"], "date": ["2020-01-01"], "parameter": ["pH"],
+        "value": ["7"], "unit": ["pH units"],
+    }).to_csv(raw, index=False)
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps({
+        "station_id": "station", "sample_datetime": "date",
+        "parameter_name": "parameter", "result_value": "value", "result_unit": "unit",
+    }))
+    original_bytes = raw.read_bytes()
+    with pytest.raises(ValueError, match="must not overwrite"):
+        audit_dws_csv(raw, mapping, raw)
+    assert raw.read_bytes() == original_bytes
