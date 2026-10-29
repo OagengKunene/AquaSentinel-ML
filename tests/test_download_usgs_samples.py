@@ -59,7 +59,7 @@ def test_parse_csv_payload_counts_rows_and_keeps_header():
 
 
 def test_parse_csv_payload_handles_quoted_multiline_fields():
-    payload = b'id,comment\\n1,"first line\\nsecond line"\\n2,"another\\nfield"\\n'
+    payload = b'id,comment\n1,"first line\nsecond line"\n2,"another\nfield"\n'
     header, count = parse_csv_payload(payload, max_records=2)
     assert header == ["id", "comment"]
     assert count == 2
