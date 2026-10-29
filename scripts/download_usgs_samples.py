@@ -8,8 +8,8 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
-import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -69,7 +69,7 @@ def parse_csv_payload(content: bytes, max_records: int) -> tuple[list[str], int]
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ValueError("USGS response was not UTF-8 CSV") from exc
-    reader = csv.reader(text.splitlines())
+    reader = csv.reader(io.StringIO(text, newline=""))
     header = next(reader, [])
     if not header or len(header) < 2:
         raise ValueError("USGS response did not contain a recognisable CSV header")
