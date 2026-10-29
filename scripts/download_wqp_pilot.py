@@ -16,6 +16,11 @@ import requests
 ENDPOINT = "https://www.waterqualitydata.us/data/Result/search"
 
 
+def format_wqp_date(value):
+    """Format dates as required by the legacy WQP Result service."""
+    return value.strftime("%m-%d-%Y")
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -45,8 +50,8 @@ def main() -> None:
         parser.error("--max-records must be positive")
 
     params = {
-        "startDateLo": start.isoformat(),
-        "startDateHi": end.isoformat(),
+        "startDateLo": format_wqp_date(start),
+        "startDateHi": format_wqp_date(end),
         "characteristicName": args.characteristic,
         "mimeType": "csv",
         "zip": "no",
