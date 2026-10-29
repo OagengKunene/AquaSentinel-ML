@@ -58,7 +58,7 @@ python -m aquasentinel.train --data data/demo_water_quality.csv --target potabil
 
 Expected numeric features: `ph, Hardness, Solids, Chloramines, Sulfate, Conductivity, Organic_carbon, Trihalomethanes, Turbidity`. Target must be binary 0/1.
 
-**Methodology note:** model selection now uses mean cross-validation ROC-AUC on the training partition. The selected model is refit on that partition and the holdout is evaluated once at a predeclared 0.5 threshold. Preprocessing remains inside the scikit-learn pipeline and therefore inside each CV fold. Do not repeatedly inspect or tune against the holdout. This random-split experiment still does not establish performance on new sites or future time periods.
+**Methodology note:** model selection uses mean 5-fold ROC-AUC on the training partition. Threshold analysis uses nested 5-fold outer / 4-fold inner cross-validation, with model selection repeated inside each outer training fold. The locked holdout is not used to choose either the model or operating thresholds. Reports include the default 0.5 threshold, a recall-focused F2 threshold, and a maximum-recall alternative subject to a training-only precision floor of 0.50. These are exploratory trade-offs, not safety cutoffs; see [the benchmark results and interpretation](docs/BENCHMARK_BASELINE_RESULTS.md). Preprocessing remains inside each scikit-learn pipeline. This random-split experiment still does not establish performance on new sites or future time periods.
 
 Run tests with `pytest -q`; GitHub Actions runs the same suite on pushes and pull requests.\n\n## API
 
