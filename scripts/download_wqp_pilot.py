@@ -98,6 +98,11 @@ def main() -> None:
         "column_names": header,
         "sha256": sha256_file(output),
         "local_file": str(output),
+        "source_freshness_warning": (
+            "This downloader uses the legacy WQP Result service. USGS discrete-water-quality data on "
+            "that legacy service stopped receiving new/updated records in March 2024. For current "
+            "USGS discrete samples, use the USGS Samples API or the beta WQP WQX3 Result service."
+        ),
         "interpretation_warning": (
             "These are discrete sample results, not necessarily continuous time-series data. "
             "Preserve site, activity, date, characteristic, result unit, method, fraction, and "
