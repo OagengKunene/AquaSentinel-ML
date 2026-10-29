@@ -8,7 +8,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.metrics import (
     accuracy_score, average_precision_score, balanced_accuracy_score,
     brier_score_loss, classification_report, confusion_matrix, f1_score,
-    precision_score, recall_score, roc_auc_score,
+    precision_score, recall_score, roc_auc_score, calibration_curve,
 )
 from sklearn.model_selection import StratifiedKFold, cross_validate, train_test_split
 
