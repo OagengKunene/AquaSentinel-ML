@@ -79,7 +79,7 @@ def main() -> None:
     report = profile_csv(args.data, args.target)
     destination = Path(args.output)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(report, indent=2, default=str) + "\\n", encoding="utf-8")
+    destination.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
     print(f"Profile written to {destination}")
     print(f"Rows: {report['rows']:,}; columns: {report['columns']}; duplicates: {report['duplicate_rows']:,}")
 
