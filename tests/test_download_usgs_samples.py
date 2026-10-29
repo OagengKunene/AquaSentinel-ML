@@ -1,4 +1,3 @@
-import csv
 from datetime import date
 
 import pytest
@@ -56,6 +55,13 @@ def test_parse_csv_payload_counts_rows_and_keeps_header():
         max_records=2,
     )
     assert header == ["ActivityIdentifier", "Characteristic", "ResultMeasureValue"]
+    assert count == 2
+
+
+def test_parse_csv_payload_handles_quoted_multiline_fields():
+    payload = b'id,comment\\n1,"first line\\nsecond line"\\n2,"another\\nfield"\\n'
+    header, count = parse_csv_payload(payload, max_records=2)
+    assert header == ["id", "comment"]
     assert count == 2
 
 
