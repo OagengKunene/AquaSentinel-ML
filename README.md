@@ -47,7 +47,7 @@ python scripts/download_wqp_pilot.py --siteid USGS-01594440 --start-date 2020-01
 
 The script preserves the raw CSV and writes query provenance beside it. See the ingestion guide for additional options and interpretation constraints. Downloaded CSV data is excluded from Git by default.
 
-## Exploratory data analysis\n\nProfile either downloaded dataset without modifying the raw file:\n\n```bash\n# Track A: include the binary target\npython -m scripts.profile_data --data data/benchmark/water_potability.csv --target Potability\n\n# Track B: descriptive profile only; do not treat records as a continuous time series\npython -m scripts.profile_data --data data/environmental/wqp_results.csv --output artifacts/wqp_profile.json\n```\n\nThe report includes missingness, duplicate rows, numeric summaries and correlations. For WQP data it also reports common parameter/provider values when those columns exist. These are exploratory summaries, not data harmonisation or regulatory assessments.\n\n## Existing demo experiment
+## Exploratory data analysis\n\nProfile either downloaded dataset without modifying the raw file:\n\n```bash\n# Track A: include the binary target\npython -m scripts.profile_data --data data/benchmark/water_potability.csv --target Potability\n\n# Track B: descriptive profile only; do not treat records as a continuous time series\npython -m scripts.profile_data --data data/environmental/wqp_results.csv --output artifacts/wqp_profile.json\n```\n\nThe report includes missingness, duplicate rows, numeric summaries and correlations. For WQP data it also reports common parameter/provider values when those columns exist. These are exploratory summaries, not data harmonisation or regulatory assessments.\n\n## Track B: environmental anomaly screening\n\nAfter downloading a bounded Water Quality Portal dataset, run the parameter-aware anomaly screen:\n\n```bash\npython -m scripts.anomaly_screen --data data/environmental/wqp_results.csv --scope site --min-samples 30\n```\n\nThis adds robust median/MAD scores, Isolation Forest flags and Local Outlier Factor flags within characteristic/unit/site groups. Small groups are skipped. The default site scope avoids pooling naturally different monitoring locations. These are exploratory statistical signals, not evidence of contamination or unsafe water. See [Anomaly Screening Methodology](docs/ANOMALY_SCREENING.md).\n\n## Existing demo experiment
 
 Generate synthetic smoke-test data and run the existing pipeline:
 
@@ -60,7 +60,7 @@ Expected numeric features: `ph, Hardness, Solids, Chloramines, Sulfate, Conducti
 
 **Methodology note:** model selection now uses mean cross-validation ROC-AUC on the training partition. The selected model is refit on that partition and the holdout is evaluated once at a predeclared 0.5 threshold. Preprocessing remains inside the scikit-learn pipeline and therefore inside each CV fold. Do not repeatedly inspect or tune against the holdout. This random-split experiment still does not establish performance on new sites or future time periods.
 
-## API
+Run tests with `pytest -q`; GitHub Actions runs the same suite on pushes and pull requests.\n\n## API
 
 `POST /predict` accepts these measurement fields. Example:
 
